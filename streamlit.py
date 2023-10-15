@@ -6,6 +6,7 @@ import folium
 import seaborn as sns
 from datetime import datetime
 from folium import Icon
+import matplotlib.dates as mdates
 from streamlit_folium import folium_static
 
 # Sample data
@@ -93,8 +94,31 @@ plt.rcParams.update({'font.size': 7})
 plt.xticks(rotation=45)
 st.pyplot(plt)
 
+st.title("Violations Analysis")
 
+red_violations = closed_business[closed_business["Violation Type"] == "RED"]
+blue_violations = closed_business[closed_business["Violation Type"] == "BLUE"]
 
+def plot_top_10_violations(df, title, color):
+    # Count the occurrences of each 'Violation Code'
+    counts = df['Violation Code'].value_counts().reset_index()
+    counts.columns = ['Violation Code', 'Count']
+
+    # Sort by count and select the top 10
+    top_10_counts = counts.head(10)
+
+    fig, ax = plt.subplots(figsize=(20, 5))
+    sns.barplot(data=top_10_counts, x="Violation Code", y="Count", palette=[color], ax=ax)
+    ax.set_xticklabels(ax.get_xticklabels(), rotation=45)
+    st.pyplot(fig)
+
+st.write("Top 10 Red Violations")
+plot_top_10_violations(red_violations, "Red Violations", "red")
+
+st.write("Top 10 Blue Violations")
+plot_top_10_violations(blue_violations, "Blue Violations", "blue")
+
+#########################################################################################################
 
 newking = king_county_df.sort_values('Inspection Date')
 newking = newking[~(newking['Inspection Date'].isnull())]
@@ -142,6 +166,31 @@ st.write(table)
 
 
 
+king_county_df['Inspection Date'] = pd.to_datetime(king_county_df['Inspection Date'])
+king_county_df = king_county_df.sort_values(by='Inspection Date')
+plt.figure(figsize=(12, 6))
+start_date = king_county_df['Inspection Date'].min()
+end_date = start_date + pd.DateOffset(months=3)
+dates = []
+scores = []
+while end_date <= king_county_df['Inspection Date'].max():
+    subset = king_county_df[(king_county_df['Inspection Date'] >= start_date) & (king_county_df['Inspection Date'] < end_date)]
+    dates.append(start_date)
+    scores.append(subset['Inspection Score'].mean())
+    start_date = end_date
+    end_date = start_date + pd.DateOffset(months=3)
+plt.plot(dates, scores, marker='o', linestyle='-')
+plt.title('Inspection Score In 3 months')
+plt.xlabel('date')
+plt.ylabel('Inspection Score')
+plt.gca().xaxis.set_major_locator(mdates.MonthLocator(interval=6))
+plt.gca().xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
+plt.xticks(rotation=45)
+plt.grid(True)
+st.pyplot(plt)
+
+
+
 #t=table.head(50)
 #plt.figure(figsize=(20,25))
 #
@@ -165,34 +214,34 @@ st.write(table)
 
 
 
-r_name=["WENDY'S",'MCDONALD','SUBWAY','DOMINO','BURGER KING']
+# r_name=["WENDY'S",'MCDONALD','SUBWAY','DOMINO','BURGER KING']
 
-num=[]
-for item in r_name:
-    df2=king_county_df['Inspection Business Name'].str.find(item)
-    list_index=df2[df2>-1].index
-    num.append(king_county_df.iloc[list_index]['Business_ID'].nunique())
-    print(king_county_df.iloc[list_index].groupby('Business_ID').first()['Risk'])
-st.write(num)
-
-
-num=[]
-for item in r_name:
-    df2=king_county_df['Inspection Business Name'].str.find(item)
-    list_index=df2[df2>-1].index
-    num.append(king_county_df.iloc[list_index]['Business_ID'].nunique())
-    print(king_county_df.iloc[list_index].groupby('Business_ID').first()['Grade'].mean())
-st.write(num)
+# num=[]
+# for item in r_name:
+#     df2=king_county_df['Inspection Business Name'].str.find(item)
+#     list_index=df2[df2>-1].index
+#     num.append(king_county_df.iloc[list_index]['Business_ID'].nunique())
+#     print(king_county_df.iloc[list_index].groupby('Business_ID').first()['Risk'])
+# st.write(num)
 
 
-num=[]
-for item in r_name:
-    df2=king_county_df['Inspection Business Name'].str.find(item)
-    list_index=df2[df2>-1].index
-    num.append(king_county_df.iloc[list_index]['Business_ID'].nunique())
-    print(king_county_df.iloc[list_index].groupby('Business_ID').first()['Inspection Score'].mean())
+# num=[]
+# for item in r_name:
+#     df2=king_county_df['Inspection Business Name'].str.find(item)
+#     list_index=df2[df2>-1].index
+#     num.append(king_county_df.iloc[list_index]['Business_ID'].nunique())
+#     print(king_county_df.iloc[list_index].groupby('Business_ID').first()['Grade'].mean())
+# st.write(num)
+
+
+# num=[]
+# for item in r_name:
+#     df2=king_county_df['Inspection Business Name'].str.find(item)
+#     list_index=df2[df2>-1].index
+#     num.append(king_county_df.iloc[list_index]['Business_ID'].nunique())
+#     print(king_county_df.iloc[list_index].groupby('Business_ID').first()['Inspection Score'].mean())
     
-st.write(num)
+# st.write(num)
 
 
 # pop_df = pd.read_csv("/home/mohe/Desktop/notebooks/us-cities-table.csv")
@@ -223,4 +272,5 @@ st.write(num)
 # sns.barplot(data=merged_data, x="population", y="City_Count", hue="City", dodge=False)
 # plt.xticks(rotation=45)
 # st.write(plt)
+
 
