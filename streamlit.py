@@ -5,44 +5,80 @@ import matplotlib.pyplot as plt
 import folium
 import seaborn as sns
 from datetime import datetime
+from folium import Icon
+from streamlit_folium import folium_static
 
 # Sample data
-path = st.text_input("Enter Path")
-king_county_df =  pd.read_csv("/home/mohe/Desktop/notebooks/king_county_cleaned_data.csv", low_memory=False, dtype={"Violation Code": "object"})
+king_county_df =  pd.read_csv("/home/mohe/Documents/Data/kc_clean.csv", low_memory=False, dtype={"Violation Code": "object"})
 king_county_df["Inspection Date"] = pd.to_datetime(king_county_df["Inspection Date"])
 not_null = king_county_df[~(king_county_df['Longitude'].isnull()) & ~(king_county_df['Grade'].isnull())]
-not_null['Grade Color'] = not_null['Grade'].map({1: 'red', 2: 'blue', 3: 'green', 4: 'purple'})
-new_gp = not_null.groupby('City')[['City','Inspection Date','Latitude','Longitude','Grade Color']].head()
-new_gp2 = not_null.groupby('Inspection Date')[['Inspection Date','City','Latitude','Longitude','Grade Color']].head()
-new_gp2 = new_gp2[pd.notnull(new_gp2['Inspection Date'])]
-dates_gp = new_gp2['Inspection Date'].nunique()
-date = '2006-01-04'
-city_gp = new_gp2.loc[new_gp2['Inspection Date']==date] 
-date = '2023-09-10'
-city_gp = new_gp2.loc[new_gp2['Inspection Date']==date] 
-date = '2006-01-03'
-city_gp = new_gp2.loc[new_gp2['Inspection Date']==date] 
-
 
 
 # 
 
-# Dropdown menu for selecting a date
-selected_date = st.selectbox("Select Inspection Date", ["2006-1-1", "2007-1-1", "2008-1-1", "2009-1-1", "2010-1-1", "2011-1-1", "2012-1-1", "2013-1-1", "20014-1-1", "2015-1-1", "2016-1-1", "2017-1-1", "2018-1-1", "2019-1-1", "2020-1-1", "2021-1-1", "2022-1-1", "2023-1-1"])
+def map_score_to_color(row):
+    score = row['Inspection Score']
+    closed = row['Inspection Closed Business']
 
-# Function to create and display the map
-def map_date(date, df):
+    if closed == 1:
+        return 'black'
+    elif 0 <= score <= 49:
+        return 'green'
+    elif 50 <= score <= 99:
+        return 'orange'
+    elif 100 <= score <= 149:
+        return 'pruple'
+    elif 150 <= score <= 180:
+        return 'red'
+    else:
+        return 'unknown'
+
+
+def map_date(start_date, end_date, df):
+    # Create a map centered on a location
     king_map = folium.Map(location=[47.5480, -121.9836], zoom_start=8)
-    city_gp = df.loc[df['Inspection Date'] == date]
-    for i in range(0, len(city_gp)):
-        clr = city_gp.iloc[i]['Grade Color']
-        folium.Marker(location=[city_gp.iloc[i]['Latitude'], city_gp.iloc[i]['Longitude']], icon=folium.Icon(color=clr), ).add_to(king_map)
-    map_html = king_map.get_root().render()
-    st.components.v1.iframe(map_html, width=700, height=500)\
+    
+    # Filter the DataFrame based on date range
+    date_mask = (df['Inspection Date'] >= str(start_date)) & (df['Inspection Date'] <= str(end_date))
+    filtered_df = df[date_mask]
+    
+    for index, row in filtered_df.iterrows():
+        # Extract data for each marker
+        location = [row['Latitude'], row['Longitude']]
+        color = row['grading_by_color']
+
+        
+        # Add markers to the map
+        folium.Marker(location=location, icon=Icon(color=color)).add_to(king_map)
+    
+    # map_html = king_map.get_root().render()
+    # st.components.v1.iframe(map_html, width=700, height=500)
+    st.write("black: closed")
+    st.write("green: 0 to 50")
+    st.write("orange: 50 to 100")
+    st.write("purple: 100 to 150")
+    st.write("red: 150 to 180")
+
+    folium_static(king_map)
+
+    st.write("count of inspections :", len(filtered_df.groupby(by='Inspection_Serial_Num')))
+    st.write("count of closed businesses :", len(filtered_df[filtered_df['Inspection Closed Business'] == 1].groupby(by='Inspection_Serial_Num')))
+
+    filtered_df_closed_business = filtered_df[filtered_df["Inspection Closed Business"] == 1]
+    show_most_closed_viol = pd.DataFrame(filtered_df_closed_business[["Violation Code", "Violation Description", "Violation Points", "Violation Type"]].value_counts())
+    st.dataframe(show_most_closed_viol)
+    
+    show_most_viol_record = pd.DataFrame(filtered_df[["Violation Code", "Violation Description", "Violation Points", "Violation Type"]].value_counts())
+    st.dataframe(show_most_viol_record)
 
 
-st.title("Folium Map Example")
-map_date(selected_date, new_gp2)
+not_null['grading_by_color'] = not_null.apply(map_score_to_color, axis=1)
+gp = not_null.groupby('Inspection Date')[['Inspection Date','City','Latitude','Longitude','grading_by_color', 'Inspection Closed Business', 'Inspection_Serial_Num',"Violation Code", "Violation Description", "Violation Points", "Violation Type"]].head()
+gp = gp[pd.notnull(gp['Inspection Date'])]
+start_date = st.sidebar.date_input("Start Date", pd.to_datetime('2023-01-01'))
+end_date = st.sidebar.date_input("End Date", pd.to_datetime('2023-01-31'))
+map_date(start_date,end_date ,gp)
+# Dropdown menu for selecting a date
 
 # ...........................
 
@@ -159,31 +195,32 @@ for item in r_name:
 st.write(num)
 
 
-pop_df = pd.read_csv("/home/mohe/Desktop/notebooks/us-cities-table.csv")
+# pop_df = pd.read_csv("/home/mohe/Desktop/notebooks/us-cities-table.csv")
 
-king_county_df['City'] = king_county_df['City'].str.lower().str.capitalize()
-pop_df['name'] = pop_df['name'].str.lower().str.capitalize()
+# king_county_df['City'] = king_county_df['City'].str.lower().str.capitalize()
+# pop_df['name'] = pop_df['name'].str.lower().str.capitalize()
 
-king_county_df["City"] = king_county_df["City"].str.replace("Seatte" , "Seattle")
-king_county_df["City"] = king_county_df["City"].str.replace("West seattle" , "Seattle")
-king_county_df["City"] = king_county_df["City"].str.replace("Sea tac" , "Seatac")
-king_county_df["City"] = king_county_df["City"].str.replace("Vashon island" , "Vashon")
+# king_county_df["City"] = king_county_df["City"].str.replace("Seatte" , "Seattle")
+# king_county_df["City"] = king_county_df["City"].str.replace("West seattle" , "Seattle")
+# king_county_df["City"] = king_county_df["City"].str.replace("Sea tac" , "Seatac")
+# king_county_df["City"] = king_county_df["City"].str.replace("Vashon island" , "Vashon")
 
-merged_data = king_county_df.merge(pop_df[['name', 'pop2020']], left_on='City', right_on='name', how='left')
-merged_data.rename(columns={'pop2020': 'population'}, inplace=True)
+# merged_data = king_county_df.merge(pop_df[['name', 'pop2020']], left_on='City', right_on='name', how='left')
+# merged_data.rename(columns={'pop2020': 'population'}, inplace=True)
 
-merged_data = merged_data.drop(['name'] ,axis='columns')
-city_counts = merged_data['City'].value_counts()
+# merged_data = merged_data.drop(['name'] ,axis='columns')
+# city_counts = merged_data['City'].value_counts()
 
-city_counts_df = pd.DataFrame({'City': city_counts.index, 'Count': city_counts.values})
+# city_counts_df = pd.DataFrame({'City': city_counts.index, 'Count': city_counts.values})
 
-merged_data['City_Count'] = merged_data['City'].map(city_counts)
+# merged_data['City_Count'] = merged_data['City'].map(city_counts)
 
 
 
-import plotly.express as px
+# import plotly.express as px
 
-plt.figure(figsize=(20,25))
-sns.barplot(data=merged_data, x="population", y="City_Count", hue="City", dodge=False)plt.xticks(rotation=45)
-st.write(plt)
+# plt.figure(figsize=(20,25))
+# sns.barplot(data=merged_data, x="population", y="City_Count", hue="City", dodge=False)
+# plt.xticks(rotation=45)
+# st.write(plt)
 
